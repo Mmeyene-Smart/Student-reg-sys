@@ -1,8 +1,8 @@
 <?php
 include_once 'config.php';
 
-$email = 'admin@example.com';
-$password = 'admin123'; // Default password
+$email = 'info@elthomppoly.edu.ng';
+$password = 'elthomppoly@2026'; // Default password
 
 try {
     // Check if admin already exists

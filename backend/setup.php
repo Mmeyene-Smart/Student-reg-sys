@@ -57,18 +57,18 @@ try {
     $stmt = $conn->prepare("SELECT COUNT(*) FROM admins WHERE email = 'info@elthomppoly.edu.ng'");
     $stmt->execute();
     if ($stmt->fetchColumn() == 0) {
-        $password = password_hash('Isaac@1982~1982', PASSWORD_BCRYPT);
+        $password = password_hash('elthomppoly@2026', PASSWORD_BCRYPT);
         $stmt = $conn->prepare("INSERT INTO admins (email, password) VALUES ('info@elthomppoly.edu.ng', :password)");
         $stmt->bindParam(':password', $password);
         $stmt->execute();
-        echo "Admin user created (info@elthomppoly.edu.ng / Isaac@1982~1982).<br>";
+        echo "Admin user created (info@elthomppoly.edu.ng / elthomppoly@2026).<br>";
     } else {
         // Force update password for existing user if script is re-run
-        $password = password_hash('Isaac@1982~1982', PASSWORD_BCRYPT);
+        $password = password_hash('elthomppoly@2026', PASSWORD_BCRYPT);
         $stmt = $conn->prepare("UPDATE admins SET password = :password WHERE email = 'info@elthomppoly.edu.ng'");
         $stmt->bindParam(':password', $password);
         $stmt->execute();
-        echo "Admin password updated (info@elthomppoly.edu.ng / Isaac@1982~1982).<br>";
+        echo "Admin password updated (info@elthomppoly.edu.ng / elthomppoly@2026).<br>";
     }
     
     echo "Database setup completed successfully.";

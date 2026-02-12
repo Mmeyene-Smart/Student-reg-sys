@@ -9,13 +9,13 @@ ini_set('log_errors', 1);
 ob_start();
 
 // Determine environment
-$is_localhost = ($_SERVER['SERVER_NAME'] === 'localhost' || $_SERVER['SERVER_NAME'] === '127.0.0.1');
+$is_localhost = (php_sapi_name() === 'cli' || $_SERVER['SERVER_NAME'] === 'localhost' || $_SERVER['SERVER_NAME'] === '127.0.0.1');
 
 if ($is_localhost) {
     // Local Development Settings
     header("Access-Control-Allow-Origin: *");
     
-    $host = 'localhost';
+    $host = '127.0.0.1';
     $db_name = 'u678570154_student_reg_sy';
     $username = 'root';
     $password = '';
@@ -34,7 +34,7 @@ header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
 header("Content-Type: application/json; charset=UTF-8");
 
 // Handle preflight request
-if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
     http_response_code(200);
     ob_end_clean();
     exit();

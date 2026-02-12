@@ -174,7 +174,7 @@ try {
 
     if ($stmt->execute()) {
         http_response_code(201);
-        echo json_encode(["message" => "Student registered successfully."]);
+        echo json_encode(["message" => "Student registered successfully.", "student_id" => $conn->lastInsertId()]);
     } else {
         http_response_code(503);
         echo json_encode(["message" => "Unable to register student."]);
