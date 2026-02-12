@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { API_BASE_URL } from '../config';
+import '../form-styles.css';
 
 const RegisterForm = () => {
-    const [step, setStep] = useState(1);
-
     const [formData, setFormData] = useState({
         surname: '',
         other_names: '',
@@ -14,7 +13,8 @@ const RegisterForm = () => {
         nationality: '',
         phone: '',
         course_study: '',
-        nd_hnd_holder: false
+        nd_holder: false,
+        hnd_holder: false
     });
 
     // Separate state for files
@@ -44,26 +44,6 @@ const RegisterForm = () => {
                 [name]: selectedFiles[0]
             }));
         }
-    };
-
-    const nextStep = () => {
-        // Validate Step 1 fields
-        const required = ['surname', 'other_names', 'dob', 'nationality', 'lga_origin', 'email', 'phone'];
-        const empty = required.filter(f => !formData[f]);
-
-        if (empty.length > 0) {
-            setMessage({ type: 'error', text: 'Please fill in all personal and contact information fields.' });
-            return;
-        }
-        setMessage({ type: '', text: '' });
-        setStep(2);
-        window.scrollTo(0, 0);
-    };
-
-    const prevStep = () => {
-        setStep(1);
-        setMessage({ type: '', text: '' });
-        window.scrollTo(0, 0);
     };
 
     const handleSubmit = async (e) => {
@@ -124,7 +104,8 @@ const RegisterForm = () => {
                 // Reset form
                 setFormData({
                     surname: '', other_names: '', email: '', dob: '', sex: 'Male',
-                    lga_origin: '', nationality: '', phone: '', course_study: '', nd_hnd_holder: false
+                    lga_origin: '', nationality: '', phone: '', course_study: '',
+                    nd_holder: false, hnd_holder: false
                 });
                 setFiles({
                     birth_cert: null,
@@ -132,10 +113,9 @@ const RegisterForm = () => {
                     ssce_cert: null,
                     jamb_result: null
                 });
-                setStep(1); // Go back to start
 
-                // Clear file inputs
-                document.querySelectorAll('input[type="file"]').forEach(el => el.value = '');
+                // Reset file inputs visually by clearing state (inputs will rerender)
+                document.querySelectorAll('input[type="file"]').forEach(input => input.value = '');
 
                 setTimeout(() => {
                     setMessage({ type: '', text: '' });
@@ -150,177 +130,170 @@ const RegisterForm = () => {
         setLoading(false);
     };
 
+    // Helper for beautiful file input component
+    const FileInput = ({ label, name, required }) => {
+        const hasFile = !!files[name];
+        const fileName = hasFile ? files[name].name : 'Click to Upload (PDF, JPG, PNG)';
+
+        return (
+            <div className="input-group">
+                <label style={{ fontWeight: 600, marginBottom: '8px', display: 'block', color: '#334155' }}>{label} {required && <span style={{ color: 'red' }}>*</span>}</label>
+                <div className="file-upload-wrapper">
+                    <input
+                        type="file"
+                        id={`file-${name}`}
+                        name={name}
+                        accept=".pdf,.image/jpeg,.image/png,.image/jpg"
+                        onChange={handleFileChange}
+                        required={required}
+                        className="file-input-hidden"
+                        style={{ position: 'absolute', width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 2 }}
+                    />
+                    <div className={`file-upload-label ${hasFile ? 'has-file' : ''}`} style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                        width: '100%', height: '120px', border: hasFile ? '2px solid #10b981' : '2px dashed #cbd5e1',
+                        borderRadius: '8px', backgroundColor: hasFile ? '#ecfdf5' : '#f8fafc',
+                        position: 'relative', zIndex: 1
+                    }}>
+                        <div className="upload-icon" style={{ fontSize: '24px', marginBottom: '8px', color: hasFile ? '#10b981' : '#64748b' }}>
+                            {hasFile ? '✔' : '☁️'}
+                        </div>
+                        <div className="file-name" style={{ fontSize: '0.85rem', color: '#475569', textAlign: 'center', padding: '0 10px' }}>
+                            {fileName}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className="student-portal-wrapper">
             <div className="portal-container">
                 <div className="portal-header">
                     <div className="university-logo">
-                        <img src="https://elthomppoly.edu.ng/wp-content/uploads/2026/01/EL-TOMP_logo-200x200.png" alt="University Logo" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '5px' }} />
+                        <img src="https://elthomppoly.edu.ng/wp-content/uploads/2026/01/EL-TOMP_logo-200x200.png" alt="University Logo" style={{ width: '100px', height: '100px', objectFit: 'contain', marginBottom: '15px' }} />
                     </div>
                     <h1>Student Admission Portal</h1>
                     <p className="subtitle">EL-THOMP Polytechnic • 2025/2026 Session</p>
                 </div>
 
                 {message.text && (
-                    <div className={`notification ${message.type}`}>
-                        {message.type === 'success' ? '✓' : '⚠'} {message.text}
+                    <div className={`notification ${message.type}`} style={{ padding: '15px', borderRadius: '8px', marginBottom: '20px', textAlign: 'center', background: message.type === 'success' ? '#dcfce7' : '#fee2e2', color: message.type === 'success' ? '#166534' : '#991b1b' }}>
+                        {message.type === 'success' ? '✓ ' : '⚠ '} {message.text}
                     </div>
                 )}
 
-                <div className="portal-form">
-                    {/* Progress Indicator */}
-                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px', gap: '10px' }}>
-                        <span style={{
-                            padding: '5px 12px',
-                            borderRadius: '50%',
-                            background: step === 1 ? '#007bff' : '#ccc',
-                            color: '#fff',
-                            fontWeight: 'bold'
-                        }}>1</span>
-                        <span style={{
-                            padding: '5px 12px',
-                            borderRadius: '50%',
-                            background: step === 2 ? '#007bff' : '#ccc',
-                            color: '#fff',
-                            fontWeight: 'bold'
-                        }}>2</span>
+                <form onSubmit={handleSubmit} className="portal-form">
+
+                    <div className="form-section">
+                        <h3>Personal Information</h3>
+                        <div className="grid-2">
+                            <div className="input-group">
+                                <label>Surname</label>
+                                <input type="text" name="surname" value={formData.surname} onChange={handleChange} required placeholder="Doe" />
+                            </div>
+                            <div className="input-group">
+                                <label>Other Names</label>
+                                <input type="text" name="other_names" value={formData.other_names} onChange={handleChange} required placeholder="John" />
+                            </div>
+                        </div>
+
+                        <div className="grid-2">
+                            <div className="input-group">
+                                <label>Date of Birth</label>
+                                <input type="date" name="dob" value={formData.dob} onChange={handleChange} required />
+                            </div>
+                            <div className="input-group">
+                                <label>Sex</label>
+                                <select name="sex" value={formData.sex} onChange={handleChange}>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="grid-2">
+                            <div className="input-group">
+                                <label>Nationality</label>
+                                <input type="text" name="nationality" value={formData.nationality} onChange={handleChange} required placeholder="Nigerian" />
+                            </div>
+                            <div className="input-group">
+                                <label>State/LGA of Origin</label>
+                                <input type="text" name="lga_origin" value={formData.lga_origin} onChange={handleChange} required placeholder="Lagos Island" />
+                            </div>
+                        </div>
                     </div>
 
-                    <form onSubmit={handleSubmit}>
-
-                        {/* STEP 1: PERSONAL INFORMATION */}
-                        {step === 1 && (
-                            <div className="form-step">
-                                <div className="form-section">
-                                    <h3>Personal Information</h3>
-                                    <div className="grid-2">
-                                        <div className="input-group">
-                                            <label>Surname</label>
-                                            <input type="text" name="surname" value={formData.surname} onChange={handleChange} required placeholder="Doe" />
-                                        </div>
-                                        <div className="input-group">
-                                            <label>Other Names</label>
-                                            <input type="text" name="other_names" value={formData.other_names} onChange={handleChange} required placeholder="John" />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid-2">
-                                        <div className="input-group">
-                                            <label>Date of Birth</label>
-                                            <input type="date" name="dob" value={formData.dob} onChange={handleChange} required />
-                                        </div>
-                                        <div className="input-group">
-                                            <label>Sex</label>
-                                            <select name="sex" value={formData.sex} onChange={handleChange}>
-                                                <option value="Male">Male</option>
-                                                <option value="Female">Female</option>
-                                                <option value="Other">Other</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid-2">
-                                        <div className="input-group">
-                                            <label>Nationality</label>
-                                            <input type="text" name="nationality" value={formData.nationality} onChange={handleChange} required placeholder="Nigerian" />
-                                        </div>
-                                        <div className="input-group">
-                                            <label>State/LGA of Origin</label>
-                                            <input type="text" name="lga_origin" value={formData.lga_origin} onChange={handleChange} required placeholder="Lagos Island" />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="form-section">
-                                    <h3>Contact Details</h3>
-                                    <div className="grid-2">
-                                        <div className="input-group">
-                                            <label>Email Address</label>
-                                            <input type="email" name="email" value={formData.email} onChange={handleChange} required placeholder="student@example.com" />
-                                        </div>
-                                        <div className="input-group">
-                                            <label>Phone Number</label>
-                                            <input type="tel" name="phone" value={formData.phone} onChange={handleChange} required placeholder="+234..." />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <button type="button" className="submit-btn" onClick={nextStep}>
-                                    Next
-                                </button>
+                    <div className="form-section">
+                        <h3>Contact & Academic</h3>
+                        <div className="grid-2">
+                            <div className="input-group">
+                                <label>Email Address</label>
+                                <input type="email" name="email" value={formData.email} onChange={handleChange} required placeholder="student@example.com" />
                             </div>
-                        )}
-
-                        {/* STEP 2: ACADEMIC INFORMATION */}
-                        {step === 2 && (
-                            <div className="form-step">
-                                <div className="form-section">
-                                    <h3>Academic Information</h3>
-                                    <div className="input-group full-width">
-                                        <label>Proposed Course of Study</label>
-                                        <input type="text" name="course_study" value={formData.course_study} onChange={handleChange} required placeholder="e.g. Computer Science" />
-                                    </div>
-                                </div>
-
-                                <div className="form-section">
-                                    <h3>Document Uploads</h3>
-                                    <p style={{ fontSize: '0.85rem', color: '#666', marginBottom: '15px' }}>
-                                        Please upload the required documents. Accepted formats: <strong>PDF, JPG, PNG</strong>.
-                                    </p>
-
-                                    <div className="grid-2">
-                                        <div className="input-group">
-                                            <label>Birth Certificate <span style={{ color: 'red' }}>*</span></label>
-                                            <input type="file" name="birth_cert" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileChange} required />
-                                        </div>
-                                        <div className="input-group">
-                                            <label>FSLC Certificate <span style={{ color: 'red' }}>*</span></label>
-                                            <input type="file" name="fslc_cert" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileChange} required />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid-2">
-                                        <div className="input-group">
-                                            <label>SSCE Results <span style={{ color: 'red' }}>*</span></label>
-                                            <input type="file" name="ssce_cert" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileChange} required />
-                                        </div>
-                                        <div className="input-group">
-                                            <label>JAMB Results (Optional)</label>
-                                            <input type="file" name="jamb_result" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileChange} />
-                                        </div>
-                                    </div>
-
-                                    <div className="input-group full-width" style={{ marginTop: '15px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', background: '#f9f9f9', borderRadius: '4px', border: '1px solid #eee' }}>
-                                            <input
-                                                type="checkbox"
-                                                id="nd_hnd_check"
-                                                name="nd_hnd_holder"
-                                                checked={formData.nd_hnd_holder}
-                                                onChange={handleChange}
-                                                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                                            />
-                                            <label htmlFor="nd_hnd_check" style={{ margin: 0, cursor: 'pointer', fontSize: '0.95rem', fontWeight: '500' }}>
-                                                I possess an ND (National Diploma) or HND Certificate
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div style={{ display: 'flex', gap: '15px' }}>
-                                    <button type="button" className="submit-btn" onClick={prevStep} style={{ background: '#666' }}>
-                                        Back
-                                    </button>
-                                    <button type="submit" className="submit-btn" disabled={loading}>
-                                        {loading ? <span className="loader"></span> : 'Submit Application'}
-                                    </button>
-                                </div>
+                            <div className="input-group">
+                                <label>Phone Number</label>
+                                <input type="tel" name="phone" value={formData.phone} onChange={handleChange} required placeholder="+234..." />
                             </div>
-                        )}
+                        </div>
 
-                        <p className="disclaimer" style={{ marginTop: '20px' }}>By clicking submit, you agree that all provided information is accurate.</p>
-                    </form>
-                </div>
+                        <div className="input-group full-width">
+                            <label>Proposed Course of Study</label>
+                            <input type="text" name="course_study" value={formData.course_study} onChange={handleChange} required placeholder="e.g. Computer Science" />
+                        </div>
+                    </div>
+
+                    <div className="form-section" style={{ borderTop: '2px solid #f1f5f9', paddingTop: '20px', marginTop: '30px' }}>
+                        <h3>Document Uploads</h3>
+                        <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '20px' }}>
+                            Please upload clear scans or photos of your documents.
+                        </p>
+
+                        <div className="grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                            <FileInput label="Birth Certificate" name="birth_cert" required={true} />
+                            <FileInput label="FSLC Certificate" name="fslc_cert" required={true} />
+                        </div>
+
+                        <div className="grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '20px' }}>
+                            <FileInput label="SSCE Results" name="ssce_cert" required={true} />
+                            <FileInput label="JAMB Results (Optional)" name="jamb_result" required={false} />
+                        </div>
+
+                        <h4 style={{ marginTop: '30px', marginBottom: '15px', color: '#334155', borderBottom: '1px solid #eee', paddingBottom: '5px' }}>Additional Qualifications</h4>
+                        <div className="checkbox-group" style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                            <label className="custom-checkbox" style={{ display: 'flex', alignItems: 'center', padding: '10px 15px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer' }}>
+                                <input
+                                    type="checkbox"
+                                    name="nd_holder"
+                                    checked={formData.nd_holder}
+                                    onChange={handleChange}
+                                    style={{ width: '18px', height: '18px', marginRight: '10px' }}
+                                />
+                                <span style={{ fontWeight: '500', color: '#334155' }}>I possess an ND Certificate</span>
+                            </label>
+
+                            <label className="custom-checkbox" style={{ display: 'flex', alignItems: 'center', padding: '10px 15px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer' }}>
+                                <input
+                                    type="checkbox"
+                                    name="hnd_holder"
+                                    checked={formData.hnd_holder}
+                                    onChange={handleChange}
+                                    style={{ width: '18px', height: '18px', marginRight: '10px' }}
+                                />
+                                <span style={{ fontWeight: '500', color: '#334155' }}>I possess an HND Certificate</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div style={{ marginTop: '40px' }}>
+                        <button type="submit" className="submit-btn" disabled={loading} style={{ width: '100%', padding: '15px', fontSize: '1rem', fontWeight: '600', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
+                            {loading ? <span className="loader"></span> : 'Submit Application'}
+                        </button>
+                    </div>
+
+                    <p className="disclaimer" style={{ textAlign: 'center', fontSize: '0.85rem', color: '#94a3b8', marginTop: '15px' }}>By clicking submit, you agree that all provided information is accurate.</p>
+                </form>
             </div>
         </div>
     );

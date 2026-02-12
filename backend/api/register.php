@@ -1,7 +1,7 @@
 <?php
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, ngrok-skip-browser-warning");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -20,15 +20,25 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $is_multipart = isset($_SERVER["CONTENT_TYPE"]) && stripos($_SERVER["CONTENT_TYPE"], "multipart/form-data") !== false;
 
 $data = [];
-$nd_hnd_holder = 0;
+$nd_holder = 0;
+$hnd_holder = 0;
 
 if ($is_multipart) {
-    $data = $_POST;
-    // Checkbox might be "on", "true", "1"
-    if (isset($data['nd_hnd_holder'])) {
-        $val = $data['nd_hnd_holder'];
+    if (isset($_POST) && is_array($_POST)) {
+        $data = $_POST;
+    }
+    
+    // Checkboxes
+    if (isset($data['nd_holder'])) {
+        $val = $data['nd_holder'];
         if ($val === 'true' || $val === 'on' || $val == '1') {
-            $nd_hnd_holder = 1;
+            $nd_holder = 1;
+        }
+    }
+    if (isset($data['hnd_holder'])) {
+        $val = $data['hnd_holder'];
+        if ($val === 'true' || $val === 'on' || $val == '1') {
+            $hnd_holder = 1;
         }
     }
 } else {
@@ -36,7 +46,8 @@ if ($is_multipart) {
     $input = json_decode(file_get_contents("php://input"), true);
     if ($input) {
         $data = $input;
-        $nd_hnd_holder = isset($data['nd_hnd_holder']) && $data['nd_hnd_holder'] ? 1 : 0;
+        $nd_holder = isset($data['nd_holder']) && $data['nd_holder'] ? 1 : 0;
+        $hnd_holder = isset($data['hnd_holder']) && $data['hnd_holder'] ? 1 : 0;
     }
 }
 
@@ -45,7 +56,14 @@ if (is_object($data)) {
     $data = (array)$data;
 }
 
-// Basic validation
+// Check if data is populated at all
+if (empty($data) && empty($_FILES)) {
+    http_response_code(400);
+    echo json_encode(["message" => "No data provided."]);
+    exit();
+}
+
+// Basic validation fields
 $required_fields = ['surname', 'email', 'other_names', 'dob', 'sex', 'lga_origin', 'nationality', 'phone', 'course_study'];
 foreach ($required_fields as $field) {
     if (empty($data[$field])) {
@@ -55,7 +73,6 @@ foreach ($required_fields as $field) {
     }
 }
 
-// Database Connection
 if (!isset($conn)) {
     http_response_code(500);
     echo json_encode(["message" => "Database connection error"]);
@@ -91,7 +108,7 @@ $file_paths = [
     'jamb_result' => null
 ];
 
-// Helper function for upload
+// Helper function
 function process_upload($key, $required = false) {
     global $upload_dir;
     
@@ -99,7 +116,7 @@ function process_upload($key, $required = false) {
         if ($required) {
             return ["error" => "Missing required file: $key"];
         }
-        return null; // Optional and not provided
+        return null;
     }
 
     $file = $_FILES[$key];
@@ -161,12 +178,13 @@ if (!empty($errors)) {
 }
 
 // Insert into Database
+// Note: We use the new columns `nd_holder` and `hnd_holder`
 $query = "INSERT INTO students 
 (surname, other_names, email, dob, sex, lga_origin, nationality, phone, course_study, 
-birth_cert, fslc_cert, ssce_cert, jamb_result, nd_hnd_holder) 
+birth_cert, fslc_cert, ssce_cert, jamb_result, nd_holder, hnd_holder) 
 VALUES 
 (:surname, :other_names, :email, :dob, :sex, :lga_origin, :nationality, :phone, :course,
-:birth_cert, :fslc_cert, :ssce_cert, :jamb_result, :nd_hnd_holder)";
+:birth_cert, :fslc_cert, :ssce_cert, :jamb_result, :nd_holder, :hnd_holder)";
 
 try {
     $stmt = $conn->prepare($query);
@@ -185,7 +203,9 @@ try {
     $stmt->bindParam(":fslc_cert", $file_paths['fslc_cert']);
     $stmt->bindParam(":ssce_cert", $file_paths['ssce_cert']);
     $stmt->bindParam(":jamb_result", $file_paths['jamb_result']);
-    $stmt->bindParam(":nd_hnd_holder", $nd_hnd_holder);
+    
+    $stmt->bindParam(":nd_holder", $nd_holder);
+    $stmt->bindParam(":hnd_holder", $hnd_holder);
 
     if ($stmt->execute()) {
         http_response_code(201);
