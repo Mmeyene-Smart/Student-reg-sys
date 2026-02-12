@@ -1,7 +1,7 @@
--- Database: student_reg_sys
+-- Database: u678570154_student_reg_sy
 
-CREATE DATABASE IF NOT EXISTS student_reg_sys;
-USE student_reg_sys;
+CREATE DATABASE IF NOT EXISTS u678570154_student_reg_sy;
+USE u678570154_student_reg_sy;
 
 -- Students Table
 CREATE TABLE IF NOT EXISTS students (
@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS students (
     nationality VARCHAR(100) NOT NULL,
     phone VARCHAR(20) NOT NULL,
     course_study VARCHAR(150) NOT NULL,
+    course_type ENUM('HND', 'ND') DEFAULT 'ND',
+    merged_pdf VARCHAR(255) DEFAULT NULL,
     status ENUM('Pending', 'Approved', 'Rejected') DEFAULT 'Pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

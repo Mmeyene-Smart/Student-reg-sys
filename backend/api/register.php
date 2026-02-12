@@ -22,32 +22,23 @@ $is_multipart = isset($_SERVER["CONTENT_TYPE"]) && stripos($_SERVER["CONTENT_TYP
 $data = [];
 $nd_holder = 0;
 $hnd_holder = 0;
+$course_type = 'ND';
 
 if ($is_multipart) {
     if (isset($_POST) && is_array($_POST)) {
         $data = $_POST;
     }
     
-    // Checkboxes
-    if (isset($data['nd_holder'])) {
-        $val = $data['nd_holder'];
-        if ($val === 'true' || $val === 'on' || $val == '1') {
-            $nd_holder = 1;
-        }
-    }
-    if (isset($data['hnd_holder'])) {
-        $val = $data['hnd_holder'];
-        if ($val === 'true' || $val === 'on' || $val == '1') {
-            $hnd_holder = 1;
-        }
+    // Course type
+    if (isset($data['course_type'])) {
+        $course_type = $data['course_type'];
     }
 } else {
     // Fallback for JSON
     $input = json_decode(file_get_contents("php://input"), true);
     if ($input) {
         $data = $input;
-        $nd_holder = isset($data['nd_holder']) && $data['nd_holder'] ? 1 : 0;
-        $hnd_holder = isset($data['hnd_holder']) && $data['hnd_holder'] ? 1 : 0;
+        $course_type = isset($data['course_type']) ? $data['course_type'] : 'ND';
     }
 }
 
@@ -102,10 +93,7 @@ if (!is_dir($upload_dir)) {
 }
 
 $file_paths = [
-    'birth_cert' => null,
-    'fslc_cert' => null,
-    'ssce_cert' => null,
-    'jamb_result' => null
+    'merged_pdf' => null
 ];
 
 // Helper function
@@ -125,14 +113,14 @@ function process_upload($key, $required = false) {
         return ["error" => "Upload error code " . $file['error'] . " for $key"];
     }
 
-    // Validate type
-    $allowed_types = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+    // Validate type - ONLY PDF
+    $allowed_types = ['application/pdf'];
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
     $mime_type = finfo_file($finfo, $file['tmp_name']);
     finfo_close($finfo);
 
     if (!in_array($mime_type, $allowed_types)) {
-        return ["error" => "Invalid file type for $key. Allowed: PDF, JPG, PNG."];
+        return ["error" => "Invalid file type for $key. ONLY PDF files are allowed."];
     }
 
     // Generate unique name
@@ -150,26 +138,10 @@ function process_upload($key, $required = false) {
 
 $errors = [];
 
-// Process files
-// 1. Birth Cert
-$res = process_upload('birth_cert', true);
+// Process merged PDF
+$res = process_upload('merged_pdf', true);
 if (is_array($res) && isset($res['error'])) $errors[] = $res['error'];
-else $file_paths['birth_cert'] = $res;
-
-// 2. FSLC
-$res = process_upload('fslc_cert', true);
-if (is_array($res) && isset($res['error'])) $errors[] = $res['error'];
-else $file_paths['fslc_cert'] = $res;
-
-// 3. SSCE
-$res = process_upload('ssce_cert', true);
-if (is_array($res) && isset($res['error'])) $errors[] = $res['error'];
-else $file_paths['ssce_cert'] = $res;
-
-// 4. JAMB (Optional)
-$res = process_upload('jamb_result', false);
-if (is_array($res) && isset($res['error'])) $errors[] = $res['error'];
-else $file_paths['jamb_result'] = $res;
+else $file_paths['merged_pdf'] = $res;
 
 if (!empty($errors)) {
     http_response_code(400);
@@ -178,13 +150,12 @@ if (!empty($errors)) {
 }
 
 // Insert into Database
-// Note: We use the new columns `nd_holder` and `hnd_holder`
 $query = "INSERT INTO students 
 (surname, other_names, email, dob, sex, lga_origin, nationality, phone, course_study, 
-birth_cert, fslc_cert, ssce_cert, jamb_result, nd_holder, hnd_holder) 
+course_type, merged_pdf) 
 VALUES 
 (:surname, :other_names, :email, :dob, :sex, :lga_origin, :nationality, :phone, :course,
-:birth_cert, :fslc_cert, :ssce_cert, :jamb_result, :nd_holder, :hnd_holder)";
+:course_type, :merged_pdf)";
 
 try {
     $stmt = $conn->prepare($query);
@@ -198,14 +169,8 @@ try {
     $stmt->bindParam(":nationality", $data['nationality']);
     $stmt->bindParam(":phone", $data['phone']);
     $stmt->bindParam(":course", $data['course_study']);
-
-    $stmt->bindParam(":birth_cert", $file_paths['birth_cert']);
-    $stmt->bindParam(":fslc_cert", $file_paths['fslc_cert']);
-    $stmt->bindParam(":ssce_cert", $file_paths['ssce_cert']);
-    $stmt->bindParam(":jamb_result", $file_paths['jamb_result']);
-    
-    $stmt->bindParam(":nd_holder", $nd_holder);
-    $stmt->bindParam(":hnd_holder", $hnd_holder);
+    $stmt->bindParam(":course_type", $course_type);
+    $stmt->bindParam(":merged_pdf", $file_paths['merged_pdf']);
 
     if ($stmt->execute()) {
         http_response_code(201);
