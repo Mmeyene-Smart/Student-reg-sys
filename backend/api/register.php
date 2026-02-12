@@ -1,5 +1,13 @@
 <?php
-// backend/api/register.php
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
+
 include_once '../config.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -8,28 +16,56 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit();
 }
 
-$data = json_decode(file_get_contents("php://input"));
+// Check if content type is multipart/form-data
+$is_multipart = isset($_SERVER["CONTENT_TYPE"]) && stripos($_SERVER["CONTENT_TYPE"], "multipart/form-data") !== false;
 
-if (
-    !isset($data->surname) || 
-    !isset($data->email) ||
-    !isset($data->other_names) ||
-    !isset($data->dob) ||
-    !isset($data->sex) ||
-    !isset($data->lga_origin) ||
-    !isset($data->nationality) ||
-    !isset($data->phone) ||
-    !isset($data->course_study)
-) {
-    http_response_code(400);
-    echo json_encode(["message" => "Incomplete data"]);
+$data = [];
+$nd_hnd_holder = 0;
+
+if ($is_multipart) {
+    $data = $_POST;
+    // Checkbox might be "on", "true", "1"
+    if (isset($data['nd_hnd_holder'])) {
+        $val = $data['nd_hnd_holder'];
+        if ($val === 'true' || $val === 'on' || $val == '1') {
+            $nd_hnd_holder = 1;
+        }
+    }
+} else {
+    // Fallback for JSON
+    $input = json_decode(file_get_contents("php://input"), true);
+    if ($input) {
+        $data = $input;
+        $nd_hnd_holder = isset($data['nd_hnd_holder']) && $data['nd_hnd_holder'] ? 1 : 0;
+    }
+}
+
+// Convert object to array if needed (though $_POST is array)
+if (is_object($data)) {
+    $data = (array)$data;
+}
+
+// Basic validation
+$required_fields = ['surname', 'email', 'other_names', 'dob', 'sex', 'lga_origin', 'nationality', 'phone', 'course_study'];
+foreach ($required_fields as $field) {
+    if (empty($data[$field])) {
+        http_response_code(400);
+        echo json_encode(["message" => "Incomplete data: Missing $field"]);
+        exit();
+    }
+}
+
+// Database Connection
+if (!isset($conn)) {
+    http_response_code(500);
+    echo json_encode(["message" => "Database connection error"]);
     exit();
 }
 
 // Check for duplicate email
 $check_query = "SELECT id FROM students WHERE email = :email LIMIT 1";
 $check_stmt = $conn->prepare($check_query);
-$check_stmt->bindParam(":email", $data->email);
+$check_stmt->bindParam(":email", $data['email']);
 $check_stmt->execute();
 
 if ($check_stmt->rowCount() > 0) {
@@ -38,28 +74,128 @@ if ($check_stmt->rowCount() > 0) {
     exit();
 }
 
+// File Upload Handling
+$upload_dir = '../uploads/';
+if (!is_dir($upload_dir)) {
+    if (!mkdir($upload_dir, 0755, true)) {
+        http_response_code(500);
+        echo json_encode(["message" => "Failed to create upload directory"]);
+        exit();
+    }
+}
+
+$file_paths = [
+    'birth_cert' => null,
+    'fslc_cert' => null,
+    'ssce_cert' => null,
+    'jamb_result' => null
+];
+
+// Helper function for upload
+function process_upload($key, $required = false) {
+    global $upload_dir;
+    
+    if (!isset($_FILES[$key]) || $_FILES[$key]['error'] === UPLOAD_ERR_NO_FILE) {
+        if ($required) {
+            return ["error" => "Missing required file: $key"];
+        }
+        return null; // Optional and not provided
+    }
+
+    $file = $_FILES[$key];
+    
+    if ($file['error'] !== UPLOAD_ERR_OK) {
+        return ["error" => "Upload error code " . $file['error'] . " for $key"];
+    }
+
+    // Validate type
+    $allowed_types = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime_type = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+
+    if (!in_array($mime_type, $allowed_types)) {
+        return ["error" => "Invalid file type for $key. Allowed: PDF, JPG, PNG."];
+    }
+
+    // Generate unique name
+    $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+    $clean_key = preg_replace('/[^a-zA-Z0-9]/', '_', $key);
+    $filename = uniqid($clean_key . '_') . '.' . $ext;
+    $target_path = $upload_dir . $filename;
+
+    if (move_uploaded_file($file['tmp_name'], $target_path)) {
+        return $filename;
+    } else {
+        return ["error" => "Failed to move uploaded file $key"];
+    }
+}
+
+$errors = [];
+
+// Process files
+// 1. Birth Cert
+$res = process_upload('birth_cert', true);
+if (is_array($res) && isset($res['error'])) $errors[] = $res['error'];
+else $file_paths['birth_cert'] = $res;
+
+// 2. FSLC
+$res = process_upload('fslc_cert', true);
+if (is_array($res) && isset($res['error'])) $errors[] = $res['error'];
+else $file_paths['fslc_cert'] = $res;
+
+// 3. SSCE
+$res = process_upload('ssce_cert', true);
+if (is_array($res) && isset($res['error'])) $errors[] = $res['error'];
+else $file_paths['ssce_cert'] = $res;
+
+// 4. JAMB (Optional)
+$res = process_upload('jamb_result', false);
+if (is_array($res) && isset($res['error'])) $errors[] = $res['error'];
+else $file_paths['jamb_result'] = $res;
+
+if (!empty($errors)) {
+    http_response_code(400);
+    echo json_encode(["message" => implode(", ", $errors)]);
+    exit();
+}
+
+// Insert into Database
 $query = "INSERT INTO students 
-(surname, other_names, email, dob, sex, lga_origin, nationality, phone, course_study) 
+(surname, other_names, email, dob, sex, lga_origin, nationality, phone, course_study, 
+birth_cert, fslc_cert, ssce_cert, jamb_result, nd_hnd_holder) 
 VALUES 
-(:surname, :other_names, :email, :dob, :sex, :lga_origin, :nationality, :phone, :course)";
+(:surname, :other_names, :email, :dob, :sex, :lga_origin, :nationality, :phone, :course,
+:birth_cert, :fslc_cert, :ssce_cert, :jamb_result, :nd_hnd_holder)";
 
-$stmt = $conn->prepare($query);
+try {
+    $stmt = $conn->prepare($query);
 
-$stmt->bindParam(":surname", $data->surname);
-$stmt->bindParam(":other_names", $data->other_names);
-$stmt->bindParam(":email", $data->email);
-$stmt->bindParam(":dob", $data->dob);
-$stmt->bindParam(":sex", $data->sex);
-$stmt->bindParam(":lga_origin", $data->lga_origin);
-$stmt->bindParam(":nationality", $data->nationality);
-$stmt->bindParam(":phone", $data->phone);
-$stmt->bindParam(":course", $data->course_study);
+    $stmt->bindParam(":surname", $data['surname']);
+    $stmt->bindParam(":other_names", $data['other_names']);
+    $stmt->bindParam(":email", $data['email']);
+    $stmt->bindParam(":dob", $data['dob']);
+    $stmt->bindParam(":sex", $data['sex']);
+    $stmt->bindParam(":lga_origin", $data['lga_origin']);
+    $stmt->bindParam(":nationality", $data['nationality']);
+    $stmt->bindParam(":phone", $data['phone']);
+    $stmt->bindParam(":course", $data['course_study']);
 
-if ($stmt->execute()) {
-    http_response_code(201);
-    echo json_encode(["message" => "Student registered successfully."]);
-} else {
-    http_response_code(503);
-    echo json_encode(["message" => "Unable to register student."]);
+    $stmt->bindParam(":birth_cert", $file_paths['birth_cert']);
+    $stmt->bindParam(":fslc_cert", $file_paths['fslc_cert']);
+    $stmt->bindParam(":ssce_cert", $file_paths['ssce_cert']);
+    $stmt->bindParam(":jamb_result", $file_paths['jamb_result']);
+    $stmt->bindParam(":nd_hnd_holder", $nd_hnd_holder);
+
+    if ($stmt->execute()) {
+        http_response_code(201);
+        echo json_encode(["message" => "Student registered successfully."]);
+    } else {
+        http_response_code(503);
+        echo json_encode(["message" => "Unable to register student."]);
+    }
+} catch (PDOException $e) {
+    http_response_code(500);
+    echo json_encode(["message" => "Database error: " . $e->getMessage()]);
 }
 ?>

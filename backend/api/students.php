@@ -5,6 +5,17 @@ include_once '../config.php';
 $method = $_SERVER['REQUEST_METHOD'];
 
 // Verify 'Authorization' header (Mock check)
+if (!function_exists('getallheaders')) {
+    function getallheaders() {
+        $headers = [];
+        foreach ($_SERVER as $name => $value) {
+            if (substr($name, 0, 5) == 'HTTP_') {
+                $headers[str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($name, 5)))))] = $value;
+            }
+        }
+        return $headers;
+    }
+}
 $headers = getallheaders();
 if (!isset($headers['Authorization'])) {
     // For simplicity in this demo, allow GET without auth but secure actions generally need it.
